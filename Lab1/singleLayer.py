@@ -120,4 +120,4 @@ plt.show()
 #how quickly do the algorithms converge
 
 #3.1.3
-#TODO: all of it
+#TODO: all of it # reemAp
