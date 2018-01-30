@@ -1,0 +1,71 @@
+import tensorflow as tf
+import numpy as np
+import math, random
+import keras
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.regularizers import l2
+from keras.callbacks import EarlyStopping
+
+#4.1
+#part1: generate data
+
+learning_rate = 0.01 #0.09 with 10000 epochs makes it stop early
+n_input = 5 #number of inputs
+n_classes = 1 #number of outputs
+reg = keras.regularizers.l2(0.01)
+numHiddenLayers = 1;
+numLayersTotal = numHiddenLayers+1
+num_epochs=40000
+
+def mackeyGlass(x_t, x_t_minus_tau):
+  return x_t + ((.2*x_t_minus_tau)/(1+x_t_minus_tau**10)) - 0.1*x_t
+
+def fill_x_vector():
+  xx=np.zeros(1506)
+  xx[0]=1.5
+  for t in range(1,1506):
+    x_minus_25=0
+    x_minus_1=xx[t-1]
+    if t>25:
+      x_minus_25=xx[t-26]
+    xx[t] = mackeyGlass(x_minus_1, x_minus_25)
+  return xx
+
+x_vector = fill_x_vector()
+targets = x_vector[301:1301] #training size 800
+#targets_validation = x_vector[1101: 1301] #validation size 200
+targets_testing= x_vector[1301:1501] #testing size 200
+t = np.linspace(301,1500, num = 1200)
+
+
+#4.2
+#create training input
+patterns=[None]*1000
+for t in range(301,1301):
+  patterns[t-301]=[x_vector[t-20], x_vector[t-15],x_vector[t-10],x_vector[t-5], x_vector[t]]
+patterns=np.asarray(patterns)
+patterns.T
+
+#training NN  
+learning_rate = 0.01 #0.09 with 10000 epochs makes it stop early
+n_input = 5 #number of inputs
+n_classes = 1 #number of outputs
+reg = keras.regularizers.l2(0.01)
+numHiddenLayers = 1;
+numLayersTotal = numHiddenLayers+1
+num_epochs=40000
+
+def trainNetwork(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs):
+  numNeurons=[n_input,10,n_classes] ##parametrize
+  model = Sequential()
+  model.add(Dense(5, activation='sigmoid', input_shape=(5,), use_bias=True, bias_initializer='normal',kernel_regularizer=reg))
+  for i in range(1, numLayersTotal+1):
+    model.add(Dense(numNeurons[i], activation='sigmoid',use_bias=True, bias_initializer='normal',kernel_regularizer=reg))
+  sgd=keras.optimizers.SGD(lr=learning_rate) #parametrized learning rate
+  model.compile(optimizer=sgd, loss='mse') #stochastic gradient descent minimizing mean squared error
+  earlyStop=EarlyStopping(monitor='val_loss', min_delta=0.00001, patience=0, verbose=0, mode='auto') #can change min_delta
+  model.fit(patterns, targets, epochs=num_epochs, batch_size=1000, validation_split=0.2, callbacks=[earlyStop])
+  
+trainNetwork(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs)
+
