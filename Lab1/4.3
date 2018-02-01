@@ -1,0 +1,417 @@
+import tensorflow as tf
+import numpy as np
+import math, random
+import keras
+import pydot
+import matplotlib.pyplot as plt
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.layers import GaussianNoise
+from keras.regularizers import l2
+from keras.callbacks import EarlyStopping
+from keras.utils.vis_utils import plot_model
+from sklearn.metrics import mean_squared_error
+
+def mackeyGlass(x_t, x_t_minus_tau):
+  return x_t + ((.2*x_t_minus_tau)/(1+x_t_minus_tau**10)) - 0.1*x_t
+
+def fill_x_vector():
+  xx=np.zeros(1506)
+  xx[0]=1.5
+  for t in range(1,1506):
+    x_minus_25=0
+    x_minus_1=xx[t-1]
+    if t>25:
+      x_minus_25=xx[t-26]
+    xx[t] = mackeyGlass(x_minus_1, x_minus_25)
+  return xx
+
+def trainNetwork(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons):
+  model = Sequential()
+  model.add(Dense(5, activation='sigmoid', input_shape=(5,), use_bias=True, bias_initializer='normal',kernel_regularizer=reg))
+  for i in range(1, numLayersTotal+1):
+    model.add(Dense(numNeurons[i], activation='sigmoid',use_bias=True, bias_initializer='normal',kernel_regularizer=reg))
+  sgd=keras.optimizers.SGD(lr=learning_rate) #parametrized learning rate
+  error = model.compile(optimizer=sgd, loss='mse') #stochastic gradient descent minimizing mean squared error
+  earlyStop=EarlyStopping(monitor='val_loss', min_delta=0.0, patience=0, verbose=0, mode='auto') #can change min_delta
+  fit_ret=model.fit(patterns, targets, epochs=num_epochs, batch_size=1000, validation_split=0.2, callbacks=[earlyStop])
+  model.summary()
+  return fit_ret.history
+
+def trainAndTestNetwork(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons, testData, testData_correct):
+  model = Sequential()
+  model.add(Dense(5, activation='sigmoid', input_shape=(5,), use_bias=True, bias_initializer='normal',kernel_regularizer=reg))
+  for i in range(1, numLayersTotal+1):
+    model.add(Dense(numNeurons[i], activation='sigmoid',use_bias=True, bias_initializer='normal',kernel_regularizer=reg))
+  sgd=keras.optimizers.SGD(lr=learning_rate) #parametrized learning rate
+  error = model.compile(optimizer=sgd, loss='mse') #stochastic gradient descent minimizing mean squared error
+  earlyStop=EarlyStopping(monitor='val_loss', min_delta=0.0, patience=0, verbose=0, mode='auto') #can change min_delta
+  fit_ret=model.fit(patterns, targets, epochs=num_epochs, batch_size=1000, validation_split=0.2, callbacks=[earlyStop])
+  #test_loss=model.evaluate(testData, testData_correct)
+  predicted_output=model.predict(testData)
+  return predicted_output
+
+def graph_regression_strengths(reg_strengths, n_input, n_classes, numHiddenLayers, numLayersTotal):
+  numNeurons=[n_input,5,n_classes]
+  learning_rate = 0.08
+  num_epochs=1000
+  plt.figure(1)
+#graph #1: regularization strengths graphed on epochs vs error
+  reg = keras.regularizers.l2(0.0)
+  val_losses=trainNetwork(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons)
+  val_losses=val_losses['val_loss']
+  num_epochs_ran=len(val_losses)
+  plt.plot(np.linspace(1,num_epochs_ran,num_epochs_ran), val_losses, color='purple', label='Regularization Strength 0.00')
+
+
+  reg = keras.regularizers.l2(reg_strengths[0])
+  val_losses=trainNetwork(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons)
+  val_losses=val_losses['val_loss']
+  num_epochs_ran=len(val_losses)
+  plt.plot(np.linspace(1,num_epochs_ran,num_epochs_ran), val_losses, color='green', label='Regularization Strength 0.01')
+
+  reg = keras.regularizers.l2(reg_strengths[1])
+  val_losses=trainNetwork(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons)
+  val_losses=val_losses['val_loss']
+  num_epochs_ran=len(val_losses)
+  plt.plot(np.linspace(1,num_epochs_ran,num_epochs_ran), val_losses, color='yellow', label='Regularization Strength 0.05')
+
+  reg = keras.regularizers.l2(reg_strengths[2])
+  val_losses=trainNetwork(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons)
+  val_losses=val_losses['val_loss']
+  num_epochs_ran=len(val_losses)
+  plt.plot(np.linspace(1,num_epochs_ran,num_epochs_ran), val_losses, color='orange', label='Regularization Strength 0.1')
+
+  reg = keras.regularizers.l2(reg_strengths[3])
+  val_losses=trainNetwork(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons)
+  val_losses=val_losses['val_loss']
+  num_epochs_ran=len(val_losses)
+  plt.plot(np.linspace(1,num_epochs_ran,num_epochs_ran), val_losses, color='red', label='Regularization Strength 0.5')
+
+  reg = keras.regularizers.l2(reg_strengths[4])
+  val_losses=trainNetwork(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons)
+  val_losses=val_losses['val_loss']
+  num_epochs_ran=len(val_losses)
+  plt.plot(np.linspace(1,num_epochs_ran,num_epochs_ran), val_losses, color='cyan', label='Regularization Strength 1.0')
+
+  plt.ylim(-0.1, 4)
+  plt.xlim(-0.1,300)
+  plt.ylabel('Validation Set Mean Squared Error')
+  plt.xlabel('Epochs')
+  plt.legend()
+  plt.title('Comparison of Learning with Varying Regularization Strengths')
+  plt.show()
+
+#graph #1 regularization strengths vs mean squared error at 1000 epochs with learning rate=0.08
+  reg_losses_array=[]
+  r=0.0
+  while r<1.1:
+    reg = keras.regularizers.l2(r)
+    val_losses=trainNetwork(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons)
+    val_losses=val_losses['val_loss']
+    reg_losses_array.append(val_losses[len(val_losses)-2])
+    r+=0.1
+
+  plt.figure(2)
+  plt.plot(np.linspace(0,1.0,len(reg_losses_array)), reg_losses_array, color='purple')
+  plt.title('Regularization Strength vs Validation Set Error on 100th Epoch')
+  plt.xlabel('Regularization Strength')
+  plt.ylabel('Validation Set Mean Sqaured Error')
+  plt.show()
+
+def graph_regression_strengths_part_three(n_input, n_classes, numHiddenLayers, numLayersTotal):
+  numNeurons=[n_input,3,2,n_classes]
+  learning_rate = 0.08
+  num_epochs=5000
+  reg_losses_array=[]
+  r=0.0
+  sigma=0.03
+  while r<0.5:
+    reg = keras.regularizers.l2(r)
+    val_losses=trainNetworkWithNoise(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons, sigma)
+    val_losses=val_losses['val_loss']
+    reg_losses_array.append(val_losses[len(val_losses)-2])
+    r+=0.05
+  plt.plot(np.linspace(0,0.5,len(reg_losses_array)), reg_losses_array, color='purple', label='Standard Deviation of Noise 0.03')
+  plt.title('Regularization Strength vs Validation Set Error on 5000th Epoch')
+  plt.xlabel('Regularization Strength')
+  plt.ylabel('Validation Set Mean Sqaured Error')
+  
+  sigma=0.09
+  reg_losses_array_2=[]
+  r=0.0
+  while r<0.5:
+    reg = keras.regularizers.l2(r)
+    val_losses=trainNetworkWithNoise(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons, sigma)
+    val_losses=val_losses['val_loss']
+    reg_losses_array_2.append(val_losses[len(val_losses)-2])
+    r+=0.05
+  plt.plot(np.linspace(0,0.5,len(reg_losses_array_2)), reg_losses_array_2, color='green', label='Standard Deviation of Noise 0.09')
+  
+  sigma=0.18
+  reg_losses_array_3=[]
+  r=0.0
+  while r<0.5:
+    reg = keras.regularizers.l2(r)
+    val_losses=trainNetworkWithNoise(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons, sigma)
+    val_losses=val_losses['val_loss']
+    reg_losses_array_3.append(val_losses[len(val_losses)-2])
+    r+=0.05
+  plt.plot(np.linspace(0,0.5,len(reg_losses_array_3)), reg_losses_array_3, color='red', label='Standard Deviation of Noise 0.18')
+  plt.legend()
+  plt.show()
+
+  
+def graph_1_number_nodes(n_input, n_classes, reg, numHiddenLayers, numLayersTotal):
+  learning_rate = 0.1
+  num_epochs=1000
+  numNeurons=[n_input, 2, n_classes]  #2 nodes in hidden layer
+  val_losses=trainNetwork(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons)
+  val_losses=val_losses['val_loss']
+  num_epochs_ran=len(val_losses)
+  plt.plot(np.linspace(1,num_epochs_ran,num_epochs_ran), val_losses, color='cyan', label='2 nodes')
+  
+  numNeurons=[n_input, 3, n_classes]  #3 nodes in hidden layer
+  val_losses=trainNetwork(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons)
+  val_losses=val_losses['val_loss']
+  num_epochs_ran=len(val_losses)
+  plt.plot(np.linspace(1,num_epochs_ran,num_epochs_ran), val_losses, color='green', label='3 nodes')
+  
+  numNeurons=[n_input, 4, n_classes] #4 nodes in hidden layer
+  val_losses=trainNetwork(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons)
+  val_losses=val_losses['val_loss']
+  num_epochs_ran=len(val_losses)
+  plt.plot(np.linspace(1,num_epochs_ran,num_epochs_ran), val_losses, color='yellow', label='4 nodes')
+
+  numNeurons=[n_input, 10, n_classes]  #10 nodes in hidden layer
+  val_losses=trainNetwork(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons)
+  val_losses=val_losses['val_loss']
+  num_epochs_ran=len(val_losses)
+  plt.plot(np.linspace(1,num_epochs_ran,num_epochs_ran), val_losses, color='red', label='10 nodes')
+
+  numNeurons=[n_input, 20, n_classes] #20 nodes in hidden layer
+  val_losses=trainNetwork(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons)
+  val_losses=val_losses['val_loss']
+  num_epochs_ran=len(val_losses)
+  plt.plot(np.linspace(1,num_epochs_ran,num_epochs_ran), val_losses, color='orange', label='20 nodes')
+
+  plt.title('Effect of Varying Number of Nodes on Error')
+  plt.xlabel('Epochs')
+  plt.ylabel('Validation Set Mean Sqaured Error')
+  plt.ylim(-.1, 4)
+  plt.xlim(-.1,300)
+  plt.legend()
+  plt.show()
+
+def graph_2_number_nodes(n_input, n_classes, reg, numHiddenLayers, numLayersTotal):
+  learning_rate = 0.05
+  num_epochs=1000
+  numNeurons=[n_input, 2, n_classes]  #2 nodes in hidden layer
+  num_nodes_results=[]
+  node_nums=[1,2,3,4,5,8,10,13,15,18, 20]
+  for n in node_nums:
+    numNeurons=[n_input, n, n_classes] #20 nodes in hidden layer
+    val_losses=trainNetwork(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons)
+    val_losses=val_losses['val_loss']
+    num_nodes_results.append(val_losses[len(val_losses)-2])
+  plt.scatter(node_nums, num_nodes_results, color='blue')
+  plt.title('Number of Nodes vs Validation Error on 1000th Epoch')
+  plt.xlabel('Number of Nodes in Hidden Layer')
+  plt.ylabel('Validation Set Mean Sqaured Error on 1000th Epoch')
+  plt.show()
+
+def graph_learning(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs):
+  losses=trainNetwork(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons)
+  val_losses=losses['val_loss']
+  losses=losses['loss']
+  num_epochs_ran=len(val_losses)
+  plt.plot(np.linspace(1,num_epochs_ran,num_epochs_ran), val_losses, color='red', label='Validation Set')
+  plt.plot(np.linspace(1,num_epochs_ran,num_epochs_ran), losses, color='blue', label='Training Set')
+  plt.title('Epochs vs Error')
+  plt.xlabel('Epochs')
+  plt.ylabel('Mean Sqaured Error')
+  plt.ylim(-.1, 4)
+  plt.xlim(0,1000)
+  plt.legend()
+  plt.show()
+  
+  
+def trainNetworkWithNoise(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons, noiseVal):
+  model = Sequential()
+  model.add(Dense(5, activation='sigmoid', input_shape=(5,), use_bias=True, bias_initializer='normal',kernel_regularizer=reg))
+  for i in range(1, numLayersTotal):
+    model.add(Dense(numNeurons[i], activation='sigmoid',use_bias=True, bias_initializer='normal',kernel_regularizer=reg))
+    model.add(GaussianNoise(noiseVal)) 
+  model.add(Dense(numNeurons[len(numNeurons) - 1], activation='sigmoid',use_bias=True, bias_initializer='normal',kernel_regularizer=reg))
+  sgd=keras.optimizers.SGD(lr=learning_rate) #parametrized learning rate
+  error = model.compile(optimizer=sgd, loss='mse') #stochastic gradient descent minimizing mean squared error
+  earlyStop=EarlyStopping(monitor='val_loss', min_delta=0.0, patience=0, verbose=0, mode='auto') #can change min_delta
+  fit_ret=model.fit(patterns, targets, epochs=num_epochs, batch_size=1000, validation_split=0.2, callbacks=[earlyStop])
+  #fit_ret=model.fit(patterns, targets, epochs=num_epochs, batch_size=1000, validation_split=0.2)
+  model.summary()
+  return fit_ret.history
+
+def test_two_layer(x_vector, n_input, n_classes, numHiddenLayers, numLayersTotal):
+  targets_testing= x_vector[1301:1501] #testing size 200
+  reg = keras.regularizers.l2(0)
+  numNeurons=[n_input,3,n_classes]
+  test_patterns=[None]*200
+  for t in range(1301,1501):
+    test_patterns[t-1301]=[x_vector[t-20], x_vector[t-15],x_vector[t-10],x_vector[t-5], x_vector[t]]
+  test_patterns=np.asarray(test_patterns)
+  test_patterns.T
+  learning_rate=0.08
+  num_epochs=50000
+  predicted_output=trainAndTestNetwork(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons, test_patterns, x_vector[1301:1501])
+  mse = mean_squared_error(predicted_output, x_vector[1301:1501])
+  print(mse)
+  plt.plot(np.linspace(1301,1501,200), x_vector[1301:1501], color='green', label='Actual Time Series Data')
+  plt.plot(np.linspace(1301,1501,200), predicted_output, color='orange', label='Pedicted Time Series')
+  plt.title('Effect of Varying Number of Nodes on Error')
+  plt.xlabel('t')
+  plt.ylabel('x(t)')
+  plt.xlim(1300,1501)
+  plt.legend()
+  plt.show()
+  
+def trainAndTest3LayerNetworkWithNoise(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons, noiseVal, testData, testData_correct):
+  model = Sequential()
+  model.add(Dense(5, activation='sigmoid', input_shape=(5,), use_bias=True, bias_initializer='normal',kernel_regularizer=reg))
+  for i in range(1, numLayersTotal):
+    model.add(Dense(numNeurons[i], activation='sigmoid',use_bias=True, bias_initializer='normal',kernel_regularizer=reg))
+    model.add(GaussianNoise(noiseVal)) 
+  model.add(Dense(numNeurons[len(numNeurons) - 1], activation='sigmoid',use_bias=True, bias_initializer='normal',kernel_regularizer=reg))
+  sgd=keras.optimizers.SGD(lr=learning_rate) #parametrized learning rate
+  error = model.compile(optimizer=sgd, loss='mse') #stochastic gradient descent minimizing mean squared error
+  #earlyStop=EarlyStopping(monitor='val_loss', min_delta=0.0, patience=0, verbose=0, mode='auto') #can change min_delta
+  #fit_ret=model.fit(patterns, targets, epochs=num_epochs, batch_size=1000, validation_split=0.2, callbacks=[earlyStop])
+  fit_ret=model.fit(patterns, targets, epochs=num_epochs, batch_size=1000, validation_split=0.2)
+  predicted_output=model.predict(testData)
+  return predicted_output
+
+def test_three_layers(test_patterns, n_input, n_classes, numHiddenLayers, numLayersTotal):
+  reg = keras.regularizers.l2(0.0)
+  numNeurons=[n_input,3,2,n_classes]
+  learning_rate=0.1
+  num_epochs=50000
+  sigma=0.03
+  predicted_output=trainAndTest3LayerNetworkWithNoise(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons, sigma,test_patterns, x_vector[1301:1501])
+  mse_1 = mean_squared_error(predicted_output, x_vector[1301:1501])
+  
+  reg = keras.regularizers.l2(0.01)
+  sigma=0.09
+  predicted_output_2=trainAndTest3LayerNetworkWithNoise(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons, sigma,test_patterns, x_vector[1301:1501])
+  mse_2 = mean_squared_error(predicted_output_2, x_vector[1301:1501])
+  
+  reg = keras.regularizers.l2(0.0)
+  sigma=0.18
+  predicted_output_3=trainAndTest3LayerNetworkWithNoise(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons, sigma,test_patterns, x_vector[1301:1501])
+  mse_3 = mean_squared_error(predicted_output_3, x_vector[1301:1501])
+  
+  reg = keras.regularizers.l2(0)
+  numNeurons=[n_input,3,n_classes]
+  predicted_output_4=trainAndTestNetwork(learning_rate, n_input, n_classes, reg, 1, 2, num_epochs, numNeurons, test_patterns, x_vector[1301:1501])
+  mse = mean_squared_error(predicted_output_4, x_vector[1301:1501])
+  print(mse)
+  print(mse_1)
+  print(mse_2)
+  print(mse_3)
+  
+  plt.plot(np.linspace(1301,1501,200), x_vector[1301:1501], color='black', label='Actual Time Series Data')
+  plt.plot(np.linspace(1301,1501,200), predicted_output, color='blue', label='Noisy Three Layer Sigma=0.03')
+  plt.plot(np.linspace(1301,1501,200), predicted_output_2, color='green', label='Noisy Three Layer Sigma=0.09')
+  plt.plot(np.linspace(1301,1501,200), predicted_output_3, color='cyan', label='Noisy Three Layer Sigma=0.18')
+  plt.plot(np.linspace(1301,1501,200), predicted_output_4, color='red', label='Noise-free Two Layer')
+  plt.title('Network Generated Time Series')
+  plt.xlabel('t')
+  plt.ylabel('x(t)')
+  plt.xlim(1300,1501)
+  plt.legend()
+  plt.show()
+
+
+  
+def graph_varying_nodes_part_3(sigma, reg_strength):
+  learning_rate = 0.1
+  n_input = 5 #number of inputs
+  n_classes = 1 #number of outputs
+  numHiddenLayers = 2;
+  numLayersTotal = numHiddenLayers+1
+  num_epochs=1000
+  regStrength = 0.01
+  reg = keras.regularizers.l2(regStrength)
+  num_nodes_results=[]
+  node_nums=[2,3,4,5,10]
+  for n in node_nums:
+    numNeurons=[n_input,3, n, n_classes]
+    val_losses=trainNetworkWithNoise(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs, numNeurons, sigma)
+    val_losses=val_losses['val_loss']
+    num_nodes_results.append(val_losses[len(val_losses)-2])
+  plt.scatter(node_nums, num_nodes_results, color='blue')
+  plt.title('Number of Nodes vs Validation Error on 1000th Epoch')
+  plt.xlabel('Number of Nodes in Second Hidden Layer')
+  plt.ylabel('Validation Set Mean Sqaured Error on 1000th Epoch')
+  plt.show()
+  
+
+
+if __name__ == '__main__':
+  #create data for time series and plot
+  x_vector = fill_x_vector()
+  targets = x_vector[301:1301] #training size 800
+  t_vector = np.linspace(0,1500, num = 1501)
+
+  #---4.2---
+  #create training input
+  patterns=[None]*1000
+  for t in range(301,1301):
+    patterns[t-301]=[x_vector[t-20], x_vector[t-15],x_vector[t-10],x_vector[t-5], x_vector[t]]
+  patterns=np.asarray(patterns)
+  patterns.T
+  n_classes = 1 #number of outputs
+  n_input = 5 #number of inputs
+  numNeurons=[n_input,5,n_classes] ##parametrize
+  #two layer perceptron
+  learning_rate = 0.05
+  regStrength = 0.01
+  reg = keras.regularizers.l2(regStrength)
+  numHiddenLayers = 1;
+  numLayersTotal = numHiddenLayers+1
+  num_epochs=1000
+
+  #the following line gives the learning curves
+  #graph_learning(learning_rate, n_input, n_classes, reg, numHiddenLayers, numLayersTotal, num_epochs)
+  
+  #the next two lines generate the two regularization strength graphs in our analysis
+  #reg_strengths_to_test=[0.01,0.05,0.1,0.5,1]
+  #graph_regression_strengths(reg_strengths_to_test, n_input, n_classes,  numHiddenLayers, numLayersTotal)
+
+  #the following two lines generates the node number graphs in our analysis
+  #graph_1_number_nodes(n_input, n_classes, reg, numHiddenLayers, numLayersTotal)
+  #graph_2_number_nodes(n_input, n_classes, reg, numHiddenLayers, numLayersTotal)
+  
+  #4.3.1 Part 4 - choosing regularization strength 0.0 and 3 nodes in hidden layer
+  #test_two_layer(x_vector, n_input, n_classes, numHiddenLayers, numLayersTotal)
+  
+
+  
+  
+  #-----4.3.2 -------- 3 layer perceptron
+  #for different sigma, compare numNodes with reg strength .01
+  #graph_varying_nodes_part_3(0.03,0.01)
+  #graph_varying_nodes_part_3(0.09,0.01)
+  #graph_varying_nodes_part_3(0.18,0.01)
+  
+  #for different sigmas, compare different regularization strengths
+  #graph_regression_strengths_part_three(n_input, n_classes, 2, 3)
+
+  
+  #For all standard deviation, we deicded to choose 2 nodes for second hidden layer and 0 regulariaztion for 0.03 and 0.18 sigma, 0.09 will have .01 regularization strength
+  test_patterns=[None]*200
+  for t in range(1301,1501):
+    test_patterns[t-1301]=[x_vector[t-20], x_vector[t-15],x_vector[t-10],x_vector[t-5], x_vector[t]]
+  test_patterns=np.asarray(test_patterns)
+  test_patterns.T
+  test_three_layers(test_patterns, n_input, n_classes, 2, 3)
+
+
