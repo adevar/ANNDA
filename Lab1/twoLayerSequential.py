@@ -88,58 +88,59 @@ misclassifiedTest = []
 MSEsTest = []
 #batch learning
 for i in range(numEpoch):
-  #forward pass
-  hin = weights.dot(patterns)
-  hout = sig_func(hin)
-  hout = np.row_stack((hout, ones.T))
-  oin = v.dot(hout)
-  out = sig_func(oin)
- 
-  thin = weights.dot(tpatterns)
-  thout = sig_func(thin)
-  thout = np.row_stack((thout, tones.T))
-  toin = v.dot(thout)
-  tout = sig_func(toin)
+    wrong = 0
+    MSE = 0
+    for j in range(len(targets)):
+        #forward pass
+        hin = weights.dot(patterns[:,j])
+        hout = sig_func(hin)
+ #       hout = np.row_stack((hout, np.array([1])))
+        hout = np.append(hout, 1)
+        oin = v.dot(hout)
+        out = sigmoid_func(oin)
+        #backward pass
+        delta_o = np.multiply((out - targets[j]), (deriv_sigmoid_func(out)))
+        delta_h = np.multiply((v.T * delta_o).flatten(), (sig_func_deriv(hout)).flatten())
+        delta_h = delta_h[0:numHiddenNodes]
+        #weight update
+        dw = np.multiply(dw, alpha) - np.multiply(np.outer(np.array([[delta_h]]),np.array((patterns[:,j]))), (1-alpha))
+        dv = np.multiply(dv, alpha) - np.multiply(np.outer(np.array([[delta_o]]),np.array((hout.T))), (1-alpha))
+        weights = weights + np.multiply(dw,eta)
+        v = v + np.multiply(dv,eta)
+      
+        #evaluating on training data
+        if ((out) * (targets[j]) < 0):
+            wrong += 1
+        MSE += (out - targets[j]) ** 2
+    misclassifiedTrain.append(1.0*wrong/len(targets))
+    MSEsTrain.append(1.0*MSE/len(targets))
 
-  #backward pass
-  delta_o = np.multiply((out - targets), (sig_func_deriv(out)))
-  delta_h = np.multiply((v.T * delta_o), (sig_func_deriv(hout)))
-  delta_h = delta_h[0:numHiddenNodes, :]
-       
-  #weight update
-  dw = np.multiply(dw, alpha) - np.multiply((delta_h.dot(patterns.T)), (1-alpha))
-  dv = np.multiply(dv, alpha) - np.multiply((delta_o.dot(hout.T)), (1-alpha))
-  weights = weights + np.multiply(dw,eta)
-  v = v + np.multiply(dv,eta)
-
-  #evaluating on training data
-  wrong = 0
-  MSE = 0
-  for i in range(len(targets)):
-      if ((out[:,i]) * (targets[i]) < 0):
-          wrong += 1
-      MSE += (out[:,i] - targets[i]) ** 2
-  misclassifiedTrain.append(1.0*wrong/len(targets))
-  MSEsTrain.append(1.0*MSE/len(targets))
-
-  #evaluating on testing data
-  twrong = 0
-  tMSE = 0
-  for i in range(len(ttargets)):
-      if ((tout[:,i]) * (ttargets[i]) < 0):
-          twrong += 1
-      tMSE += (tout[:,i] - ttargets[i]) ** 2
-  misclassifiedTest.append(1.0*twrong/len(ttargets))
-  MSEsTest.append(1.0*tMSE/len(ttargets))
+    #forward pass on testing data
+    thin = weights.dot(tpatterns)
+    thout = sig_func(thin)
+    thout = np.row_stack((thout, tones.T))
+    toin = v.dot(thout)
+    tout = sig_func(toin)
+    
+    #evaluating on testing data
+    twrong = 0
+    tMSE = 0
+    for i in range(len(ttargets)):
+        if ((tout[:,i]) * (ttargets[i]) < 0):
+            twrong += 1
+        tMSE += (tout[:,i] - ttargets[i]) ** 2
+    misclassifiedTest.append(1.0*twrong/len(ttargets))
+    MSEsTest.append(1.0*tMSE/len(ttargets))
 
 #plot mse curve
 mseFig = plt.figure()
 mseAx = mseFig.gca()
+
 mseAx.plot(range(numEpoch), MSEsTrain, color='green', label='Training Data')
 mseAx.plot(range(numEpoch), MSEsTest, color='red', label='Testing Data')
 mseAx.set_xlabel('Number of Epochs')
 mseAx.set_ylabel('Mean Squared Error')
-mseAx.set_title('Learning Curves')
+mseAx.set_title(str(numHiddenNodes) + ' Nodes Learning Curves')
 mseAx.legend()
 mseFig.savefig(str(numHiddenNodes) + 'NodesTraining.png')
 
@@ -150,14 +151,8 @@ misclassifyAx.plot(range(numEpoch), misclassifiedTrain, color='green', label='Tr
 misclassifyAx.plot(range(numEpoch), misclassifiedTest, color='red', label='Testing Data')
 misclassifyAx.set_xlabel('Number of Epochs')
 misclassifyAx.set_ylabel('Ratio of Misclassified')
-misclassifyAx.set_title('Learning Curves')
+misclassifyAx.set_title(str(numHiddenNodes) + ' Nodes Learning Curves')
 misclassifyAx.legend()
 misclassifyFig.savefig(str(numHiddenNodes) + 'NodesMisclassified.png')
 
-print(str(numHiddenNodes) + ' Nodes, ' + str(MSEsTest[-1][0]) + ' Test Inacc ' + str(MSEsTrain[-1][0]) + ' Train Inacc')
-
-#TODO:
-#testing with test data, both sequential and batch
-#analyze number of hidden nodes needed
-#learning curves
-#look at everything in spec in that section
+print(str(numHiddenNodes) + ' Nodes, ' + str(MSEsTest[-1]) + ' Test Inacc ' + str(MSEsTrain[-1]) + ' Train Inacc')
