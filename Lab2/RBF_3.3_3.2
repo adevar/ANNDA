@@ -184,7 +184,7 @@ targets = targets.T
 
 batch(numRbfNodes, rbfVector, patterns, numEpochs, weights, targets)
 '''
-def incremental(patterns, numRbfNodes, rbfVector, eta, weights, numEpochs, targets):
+def incremental(patterns, numRbfNodes, rbfVector, eta, weights, numEpochs, targets, testdata, testTargets):
   for k in range(0, numEpochs):
     np.random.shuffle(patterns)
     for i in range(0, len(patterns)):
@@ -195,7 +195,19 @@ def incremental(patterns, numRbfNodes, rbfVector, eta, weights, numEpochs, targe
       #print(f)
       deltaW = eta * (sin2x(patterns[i][1]) - f) * phi
       weights = weights + deltaW
-    print(np.average(np.absolute(sin2x(patterns[i][1]) - f)))
+    #print(np.average(np.absolute(sin2x(patterns[i][1]) - f)))
+  return weights
+
+def testIncremental(numRbfNodes, rbfVector,  weights, numEpochs, testdata, testTargets):
+  #test with one run through batch
+  phiMatrix=[]
+  for j in range(0, numRbfNodes):
+    column=rbfVector[j].gFunc(testdata)
+    phiMatrix.append(column.tolist())
+  phiMatrix=np.asarray(phiMatrix)
+  testoutput=(phiMatrix.T).dot(weights)
+  testError=np.average(np.absolute(testoutput - testTargets))
+  return testError
 
 patterns = np.arange(0, 2*math.pi, 0.1)
 noise = np.random.normal(0, 0.3, size=patterns.size)
@@ -206,8 +218,12 @@ patterns = patterns.T
 weights = .1* np.random.randn(numRbfNodes)
 targets =sin2xVectorized(patterns)
 targets = targets.T
+testdata = np.arange(0.05, 2*math.pi, 0.1)
+testdata = testdata.T
+testTargets =(sin2xVectorized(testdata)).T
 
-incremental(bothPatterns, numRbfNodes, rbfVector, .0001, weights, numEpochs, targets)
+weights=incremental(bothPatterns, numRbfNodes, rbfVector, .001, weights, 1000, targets, testdata,testTargets)
+print(testIncremental(numRbfNodes,rbfVector,weights,1,testdata,testTargets))
 
 #Hence, leveraging robustness by randomly adding noise to input turns out to be a better way to 
 		#avoid overfitting by making outputs impervious to small perturbations in input.
