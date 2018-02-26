@@ -192,15 +192,15 @@ def incremental(patterns, numRbfNodes, rbfVector, eta, weights, numEpochs, targe
     for i in range(0, len(patterns)):
       phi = np.zeros(numRbfNodes)
       for j in range (0, numRbfNodes):
-        phi[j] = rbfVector[j].gFunc(patterns[i][0])
+        phi[j] = rbfVector[j].gFunc(patterns[i])
       #print(phi.shape)
       f = (phi.T).dot(weights)
       #print(f)
-      deltaW = eta * (sin2x(patterns[i][0]) - f) * phi
+      deltaW = eta * (sin2x(patterns[i]) - f) * phi
       #print(deltaW.shape)
       weights = weights + deltaW
-      sum = sum + (np.absolute(sin2x(patterns[i][0]) - f))
-      #print(np.average(np.absolute(sin2x(patterns[i][1]) - f)))
+      sum = sum + (np.absolute(sin2x(patterns[i]) - f))
+      #print(np.average(np.absolute(sin2x(patterns[i]) - f)))
     #print(sum/len(patterns))
   return weights
 
