@@ -2,7 +2,7 @@
 
 %globals
 global epochs eta radius numAnimals numAttributes numWeights;
-epochs = 20;
+epochs = 100;
 eta = 0.2;
 radius = 25;
 numAnimals = 32;
@@ -10,33 +10,32 @@ numAttributes = 84;
 numWeights = 100;
 
 %import input data
-%cities = readtable('cities.dat','Delimiter', ';', 'ReadVariableNames', false)
-animals = csvread('animals.dat');
-animals = reshape(animals, [numAnimals, numAttributes]);
+animalss = csvread('animals.dat');
+animalss = reshape(animalss, [numAnimals, numAttributes]);
 names = importdata('animalnames.txt');
 
 %create weight matrix
 %weights = 0.5 * ones(numWeights, numAttributes);
-weights = rand(numWeights, numAttributes);
+%weights = rand(numWeights, numAttributes);
 
 for i = 1:epochs
 	for j = 1:numAnimals
 
 % Calculate the similarity between the input pattern and the weights arriving at each output node.
 % Find the most similar node; often referred to as the winner.
-		winner = mostSimilar(animals(j,:), weights);
+		winner = mostSimilar(animalss(j,:), weights);
 		%disp(winner);
 
 % Update the weights of all nodes in the weight matrix (neighbourhood) such that their
 % weights are proportionally moved closer to the input pattern.
-		weights = updateWeights(i, winner, weights, animals(j, :));
+		weights = updateWeights(i, winner, weights, animalss(j, :));
 	end
 end
 
 % 32 element vector with the indices of the winning nodes for each animal
 pos = zeros(numAnimals, 1);
 for i = 1:numAnimals
-	pos(i) = mostSimilar(animals(i,:), weights);
+	pos(i) = mostSimilar(animalss(i,:), weights);
 end
 
 % sort the vector
@@ -56,17 +55,18 @@ end
 function sigma = mySigma(epoch)
     global radius epochs;
 	timeConstant = -(epochs - 1)/log(1/radius);
-	sigma = radius*exp(-(epoch-1)/timeConstant);
+	%sigma = radius*exp(-(epoch-1)/timeConstant);
     %sigma = radius - (radius/(epochs-1))*(epoch-1);
+    sigma = 10 - 10^(epoch / epochs);
 end
 
 function neighborlyRate = neighbors(curr, epoch, winner)
   %global epochs radius;
   sigma = mySigma(epoch);
-  d = winner - curr;
-  if (d^2 < sigma^2)
-    neighborlyRate = exp(-(d^2/(2*(sigma^2)))); 
-    %neighborlyRate = 1;
+  d = abs(winner - curr);
+  if (d < sigma)
+    %neighborlyRate = exp(-(d^2/(2*(sigma^2)))); 
+    neighborlyRate = 1;
   else
     neighborlyRate = 0;
   end
