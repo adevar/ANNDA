@@ -1,0 +1,347 @@
+import numpy as np
+from random import randint
+import matplotlib.pyplot as plt
+import math
+import sys
+import scipy as sp
+import numpy.linalg as la
+
+def sign(x):
+  if x < 0:
+    return -1
+  else:
+    return 1
+
+def possibleVectors(n): # returns list of all possible binary vectors of length n
+    if n == 0:
+        return [[]]
+    newVecs = []
+    oldVecs = possibleVectors(n - 1)
+    for v in oldVecs:
+        newVecs.append(v + [1])
+        newVecs.append(v + [-1])
+    return newVecs
+
+def calculateMatrix(x1, x2):
+  return np.outer(x1, x2)
+
+def createWeights(neu, training_data):
+  w = np.zeros([neu, neu])
+  #for data in training_data:
+  #      w += calculateMatrix(data, data)
+  tdata=np.asarray(training_data)
+  w=np.matmul(tdata.T,tdata)
+  for diag in range(neu):
+      w[diag][diag] = 0
+  return np.asarray(w)
+
+def applyUpdate(weights, patternIn):
+  pattern = np.copy(patternIn)
+  pattern = np.matmul(weights,pattern)
+  sign_vec=np.vectorize(sign)
+  pattern=sign_vec(pattern)
+  return pattern
+
+def applySequentialUpdate(weights, patternIn, nodeNum):
+  pattern = np.copy(patternIn)
+  #for i in range(0, len(pattern)):
+  sum = 0
+  for j in range(0, len(pattern)):
+    sum += (weights[nodeNum][j] * pattern[j])
+  pattern[nodeNum]= sign(sum)
+  return pattern
+
+def test(weights, training_data):
+  return np.asarray(applyUpdate(weights, training_data))
+
+def trainUntilConverge(weights, training_data, max):
+  inputOld = applyUpdate(weights, training_data)
+  maxTrials = max
+  tried = 0
+#  reachedStableState = False
+  while not (tried > maxTrials):
+    inputNew = applyUpdate(weights, inputOld)
+#    if np.array_equal(inputOld, inputNew):
+#      reachedStableState = True
+#      break
+#    else:
+    inputOld = inputNew
+    tried += 1
+  return np.asarray(inputNew)
+
+def trainUntilConvergeSequential(weights, training_data, dim, max):
+  maxTrials = max
+  tried = 0
+  nodeNum = randint(0, dim)
+  inputOld = applySequentialUpdate(weights, training_data, nodeNum)
+  while not (tried > maxTrials):
+    nodeNum = randint(0, dim) #chooose random unit
+    inputNew = applySequentialUpdate(weights, inputOld, nodeNum)
+    inputOld = inputNew
+    tried += 1
+  return np.asarray(inputNew)
+
+def trainUntilConvergeSequentialWithPics(weights, training_data, dim, max):
+  maxTrials = max
+  tried = 0
+  picsPrinted = 0
+  nodeNum = randint(0, dim)
+  inputOld = applySequentialUpdate(weights, training_data, nodeNum)
+  while not (tried > maxTrials):
+    nodeNum = randint(0, dim) #chooose random unit
+    inputNew = applySequentialUpdate(weights, inputOld, nodeNum)
+    inputOld = inputNew
+    tried = tried+1
+    #print(tried, tried %100)
+    if ((tried % 500) == 0):
+        hi10 = np.reshape((np.asarray(inputOld)), (32,32))
+        plt.figure(picsPrinted)
+        plt.imshow(hi10, cmap='Greys')
+        plt.show()
+        picsPrinted = picsPrinted + 1   
+  return np.asarray(inputNew)
+
+def trainUntilConvergeSequentialEnergy(weights, training_data, dim, max, step):
+  maxTrials = max
+  tried = 0
+  E = []
+  nodeNum = randint(0, dim)
+  inputOld = applySequentialUpdate(weights, training_data, nodeNum)
+  while not (tried > maxTrials):
+    nodeNum = randint(0, dim) #chooose random unit
+    inputNew = applySequentialUpdate(weights, inputOld, nodeNum)
+    inputOld = inputNew
+    if ((tried % step) == 0):
+        E.append(energy(weights, inputOld))
+    tried += 1
+  return (np.asarray(inputNew), E)
+
+def energy(weights, pattern):
+    E = 0
+    for i in range(0, len(pattern)):
+        for j in range(0, len(pattern)):
+            E -= weights[i, j] * pattern[i] * pattern[j]
+    return E
+
+#find number of attractors
+def findAttractors(weights):
+  attractors = []
+  vecs = possibleVectors(8)
+  for vec in vecs:
+    distorted = trainUntilConverge(weights, vec, 10)
+    distorted = distorted.tolist()
+    attractors.append(distorted)
+  attractors = [list(x) for x in set(tuple(x) for x in attractors)]
+  return attractors
+
+#def trainUntilConvergeWithImages(weights, training_data):
+  ##TODO
+
+
+##2.2
+numNeurons = 8
+x1 = [-1,-1,1,-1,1,-1,-1,1]
+x2 = [-1,-1,-1,-1,-1,1,-1,-1]
+x3 = [-1,1,1,-1,-1,1,-1,1]
+x = [[], x1, x2, x3]
+training_data = [x1, x2, x3]
+eightWeights = createWeights(numNeurons, training_data)
+
+xOut = [[]]
+for i in range(1, 4):
+    xOut.append(test(eightWeights, x[i]))
+    print("Is x", i,  " a fixed point? ", np.array_equal(x[i], xOut[i]))
+
+#3.1
+x1d = [ 1, -1, 1, -1, 1, -1, -1, 1]
+x2d = [ 1, 1, -1, -1, -1, 1, -1, -1]
+x3d = [ 1, 1, 1, -1, 1, 1, -1, 1]
+xd = [[], x1d, x2d, x3d]
+
+newDistort = [[]]
+for i in range(1, 4):
+    newDistort.append(trainUntilConverge(eightWeights, xd[i], 10))
+
+print("Did all the patterns converge towards stored patterns?")
+for i in range(1, 4):
+    print("x", i, " ", np.array_equal(x[i], newDistort[i]))
+
+
+print("Attractors for 8 neuron are: ")
+patternAttractors = findAttractors(eightWeights)
+print("there are ", len(patternAttractors), " attractors")
+#print(patternAttractors)
+
+  
+#what happens when starting pattern is more than half wrong
+x4d = [-1,-1,-1,1,-1,1,1,-1]
+x4dOut = trainUntilConverge(eightWeights, x4d, 10)
+print("Was input with more than half of values distorted able to converge to the correct pattern?", np.array_equal(x[1], x4dOut))
+print("In other words, it successfully converged to an attractor, though not the same attractor as x1")
+
+file = open("pict.dat",'r')
+pAll = (file.readline()).split(",")
+p = [[]]
+for i in range(11):
+    p.append(pAll[(1024 * i):(1024 * (i + 1))])
+    p[i + 1] = map(int, p[i + 1])
+picWeights = createWeights(1024,[p[1], p[2], p[3]])
+picWeights = np.asarray(picWeights)
+
+#test is stable for three patterns that were used for training
+pOut = [[]]
+for i in range(1,4):
+    pOut.append(test(picWeights, p[i]))
+    print("Is p", i, " a fixed point? ",np.array_equal(p[i], pOut[i]))
+
+#Can network complete degraded pattern?
+# p10Out = trainUntilConverge(picWeights, p[10], 10)
+# #p10Out=np.asarray(trainUntilConverge(picWeights,p10)[0])
+# print("Did batch network converge p10 to p1?",np.array_equal(p10Out, p[1]))
+# ##ABOVE does not converge to p1 for some reason...
+# 
+# p11Out = trainUntilConverge(picWeights, p[11], 10)
+# print("Did batch network converge p11 to p2?", (np.array_equal(p11Out, p[2])))
+# print("Did batch network converge p11 to p3?", (np.array_equal(p11Out, p[3])))
+# 
+# #now try sequential (third bullet points
+# p10OutSeq = trainUntilConvergeSequential(picWeights, p[10],1023, 100000)
+# print("Did sequential network converge p10 to p1?", (np.array_equal(p10OutSeq,p[1])))
+# 
+# p11OutSeq = trainUntilConvergeSequential(picWeights, p[11],1023, 100000)
+# print("Did sequential network converge p11 to p2?", (np.array_equal(p11OutSeq,p[2])))
+# print("did sequential network converge p11 to p3?", (np.array_equal(p11OutSeq,p[3])))
+#hi93 = np.reshape((np.asarray(p11OutSeq)), (32,32))
+#plt.figure(1)
+#plt.imshow(hi93, cmap='Greys')
+#plt.show()
+
+# 3.3
+# Energy of attractors
+for i in range(1,4):
+    E = energy(picWeights, p[i])
+    print("Energy of attractor p", i, ": ", E)
+
+# Energy of distorted patterns
+for i in range(10,12):
+    E = energy(picWeights, p[i])
+    print("Energy of distorted pattern p", i, ": ", E)
+
+# Energy changing over time
+# p10Out, p10OutE = trainUntilConvergeSequentialEnergy(picWeights, p[10], 1023, 10000, 100)
+# xaxis = np.arange(0, 10001, 100)
+# plt.plot(xaxis, p10OutE)
+# plt.title('Energy of p10 Convergence')
+# plt.xlabel('Iteration')
+# plt.ylabel('Energy of uh')
+# plt.show()
+
+# Random weights
+randWeights = np.random.normal(size=(1024,1024))
+p1Out, p1OutE = trainUntilConvergeSequentialEnergy(randWeights, p[1], 1023, 10000, 100)
+xaxis = np.arange(0, 10001, 100)
+plt.plot(xaxis, p1OutE)
+plt.title('Energy of p1 With Random Weights')
+plt.xlabel('Iteration')
+plt.ylabel('Energy')
+plt.show()
+
+# Symmetric random weight matrix
+randSymmetricWeights = 0.5 * (randWeights + randWeights.T)
+p1Out, p1OutE = trainUntilConvergeSequentialEnergy(randSymmetricWeights, p[1], 1023, 10000, 100)
+xaxis = np.arange(0, 10001, 100)
+plt.plot(xaxis, p1OutE)
+plt.title('Energy of p1 With Symmetric Random Weights')
+plt.xlabel('Iteration')
+plt.ylabel('Energy')
+plt.show()
+
+# 3.4
+#3.5
+
+threeHunet=np.random.uniform(-2,2,(300,100))
+signVec=np.vectorize(sign)
+threeHunet=signVec(threeHunet)
+training_data=[]
+nStored=[]
+percentStored=[]
+for i in range(300):
+  numStored=0
+  training_data.append(threeHunet[i])
+  w=createWeights(100,training_data)
+  for j in range(i+1):
+    if(np.array_equal(test(w,threeHunet[j]),threeHunet[j])):
+        numStored+=1
+  nStored.append(numStored)
+  percentStored.append(float(numStored)/(i+1))
+print(s)
+
+
+
+file = open("pict.dat",'r')
+pAll = (file.readline()).split(",")
+p = [[]]
+for i in range(11):
+    p.append(pAll[(1024 * i):(1024 * (i + 1))])
+    p[i + 1] = map(int, p[i + 1])
+trainingData = [p[1], p[2], p[3]]
+nStored = []
+for i in range(1, 12):
+  numCorrect = 0
+  trainingData.append(p[i])
+  weights = createWeights(1024,trainingData)
+  for j in range(1, i+1):
+    if (np.array_equal(test(weights, p[j]), p[j])):
+      numCorrect = numCorrect+1
+  nStored.append(numCorrect)
+  print("Percent correct:", float(numCorrect)/i)
+  
+twoHunet=np.random.uniform(-2,2,(200,1024))
+signVec=np.vectorize(sign)
+twoHunet=signVec(twoHunet)
+trainingData = []
+nStored = []
+percentStored=[]
+for i in range(200):
+  numStored=0
+  training_data.append(twoHunet[i])
+  w=createWeights(1024,training_data)
+  for j in range(i+1):
+    if(np.array_equal(test(w,threeHunet[j]),threeHunet[j])):
+        numStored+=1
+  nStored.append(numStored)
+  percentStored.append(float(numStored)/(i+1))
+print(s)
+
+# HOW TO print images:
+
+hi10 = np.reshape((np.asarray(p10)), (32,32))
+hi1 = np.reshape((np.asarray(p1)), (32,32))
+hi33 = np.reshape((np.asarray(p3)), (32,32))
+hi43 = np.reshape((np.asarray(p4)), (32,32))
+hi53 = np.reshape((np.asarray(p5)), (32,32))
+hi63 = np.reshape((np.asarray(p6)), (32,32))
+hi73 = np.reshape((np.asarray(p7)), (32,32))
+hi83 = np.reshape((np.asarray(p8)), (32,32))
+hi93 = np.reshape((np.asarray(p9)), (32,32))
+#print(hi2.shape)
+plt.figure(1)
+plt.imshow(hi1, cmap='Greys')
+plt.figure(3)
+plt.imshow(hi33, cmap='Greys')
+plt.figure(4)
+plt.imshow(hi43, cmap='Greys')
+plt.figure(5)
+plt.imshow(hi53, cmap='Greys')
+plt.figure(6)
+plt.imshow(hi63, cmap='Greys')
+plt.figure(7)
+plt.imshow(hi73, cmap='Greys')
+plt.figure(8)
+plt.imshow(hi83, cmap='Greys')
+plt.figure(9)
+plt.imshow(hi93, cmap='Greys')
+plt.figure(10)
+plt.imshow(hi10, cmap='Greys')
+plt.show()
+'''
